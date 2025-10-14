@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id          Int       @id @default(autoincrement())
+  companyName String
+  projectName String
+  projectDesc String
+  profilePic  String?
+  email       String    @unique
+  password    String
+  chats       Chat[]
+}
+
+model Freelancer {
+  id         Int       @id @default(autoincrement())
+  name       String
+  skills     String
+  profilePic String?
+  email      String    @unique
+  password   String
+  isActive   Boolean   @default(false)
+  chats      Chat[]
+}
+
+model Chat {
+  id           Int        @id @default(autoincrement())
+  clientId     Int
+  freelancerId Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now()) @updatedAt
+
+  client       Client     @relation(fields: [clientId], references: [id])
+  freelancer   Freelancer @relation(fields: [freelancerId], references: [id])
+  messages     Message[]
+
+  // ✅ Opcional: prevenir duplicados entre el mismo cliente y freelancer
+  @@unique([clientId, freelancerId])
+}
+
+model Message {
+  id           Int       @id @default(autoincrement())
+  chatId       Int
+  senderType   SenderType
+  senderId     Int
+  content      String
+  createdAt    DateTime  @default(now())
+
+  chat         Chat      @relation(fields: [chatId], references: [id])
+}
+
+// ✅ ENUM para evitar errores de strings (más limpio y seguro)
+enum SenderType {
+  client
+  freelancer
+}
