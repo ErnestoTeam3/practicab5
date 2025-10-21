@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
-// ✅ Firma correcta según el App Router de Next.js 15
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ): Promise<NextResponse> {
   try {
-    const chatId = Number(params.chatId);
+    // ✅ Esperar a que params se resuelva (en Next.js 15 los params vienen "awaited")
+    const { chatId } = await params;
 
-    if (!chatId) {
+    const chatIdNumber = Number(chatId);
+    if (!chatIdNumber) {
       return NextResponse.json({ error: "Chat inválido" }, { status: 400 });
     }
 
-    // Eliminar mensajes asociados al chat
-    await prisma.message.deleteMany({ where: { chatId } });
+    // Eliminar mensajes
+    await prisma.message.deleteMany({ where: { chatId: chatIdNumber } });
 
     // Eliminar el chat
-    await prisma.chat.delete({ where: { id: chatId } });
+    await prisma.chat.delete({ where: { id: chatIdNumber } });
 
     return NextResponse.json({ message: "Chat eliminado correctamente ✅" });
   } catch (error) {
