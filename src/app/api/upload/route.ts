@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 
 // Variables de entorno
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 // Validación rápida para build/runtime
