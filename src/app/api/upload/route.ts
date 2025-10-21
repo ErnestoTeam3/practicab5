@@ -8,7 +8,7 @@ const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 // Validación rápida para build/runtime
-if (!supabaseUrl) throw new Error("NEXT_PUBLIC_SUPABASE_URL no está definido");
+if (!supabaseUrl) throw new Error("SUPABASE_URL no está definido");
 if (!supabaseRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY no está definido");
 
 // Cliente de Supabase con Role Key (backend)
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = `${Date.now()}-${file.name}`;
 
-    // Subir archivo
+    // Subir archivo al bucket 'chat_files'
     const { error: uploadError } = await supabase.storage
       .from("chat_files")
       .upload(fileName, buffer, { contentType: file.type });
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
-    // Crear Signed URL (opcionalmente 1 hora de validez)
+    // Crear Signed URL con validez de 1 hora
     const { data: signedUrlData, error: urlError } = await supabase.storage
       .from("chat_files")
       .createSignedUrl(fileName, 60 * 60);
