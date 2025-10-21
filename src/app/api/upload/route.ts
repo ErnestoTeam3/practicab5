@@ -4,9 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // <- aquí usamos la Role Key
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Creamos el cliente con la Role Key
+const supabase = createClient(supabaseUrl, supabaseRoleKey);
 
 export async function POST(req: Request) {
   const formData = await req.formData();
