@@ -3,19 +3,29 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-// Variables de entorno
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Validación rápida para build/runtime
-if (!supabaseUrl) throw new Error("SUPABASE_URL no está definido");
-if (!supabaseRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY no está definido");
-
-// Cliente de Supabase con Role Key (backend)
-const supabase = createClient(supabaseUrl, supabaseRoleKey);
-
 export async function POST(req: Request) {
   try {
+    // Validación DENTRO de la función (runtime, no build time)
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl) {
+      return NextResponse.json(
+        { error: "SUPABASE_URL no está configurado" },
+        { status: 500 }
+      );
+    }
+
+    if (!supabaseRoleKey) {
+      return NextResponse.json(
+        { error: "SUPABASE_SERVICE_ROLE_KEY no está configurado" },
+        { status: 500 }
+      );
+    }
+
+    // Cliente de Supabase
+    const supabase = createClient(supabaseUrl, supabaseRoleKey);
+
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
