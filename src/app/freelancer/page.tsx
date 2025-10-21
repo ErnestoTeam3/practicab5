@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { io, Socket } from "socket.io-client";
 
 export default function FreelancerDashboard() {
   const router = useRouter();
@@ -11,13 +12,22 @@ export default function FreelancerDashboard() {
   const [isActive, setIsActive] = useState(false);
   const [chats, setChats] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("freelancer");
     if (!stored) return router.push("/freelancer/login");
 
     const data = JSON.parse(stored);
-    setFreelancer(data);
+    console.log("📦 Datos del freelancer:", data);
+    console.log("🔍 ID original:", data.id, "Tipo:", typeof data.id);
+
+    const freelancerData = {
+      ...data,
+      id: Number(data.id),
+    };
+
+    setFreelancer(freelancerData);
     setForm({
       name: data.name,
       skills: data.skills,
@@ -25,13 +35,52 @@ export default function FreelancerDashboard() {
     });
     setIsActive(data.isActive || false);
 
-    fetchChats(data.id);
+    fetchChats(freelancerData.id);
   }, [router]);
 
-  const fetchChats = async (freelancerId: string) => {
+  // Socket.IO - Conectar y escuchar eventos
+  useEffect(() => {
+    if (!freelancer) return;
+
+    const s = io("/", { path: "/api/socket" });
+    setSocket(s);
+
+    const freelancerId = Number(freelancer.id);
+    console.log(`📊 Conectando al dashboard del freelancer: ${freelancerId}`);
+    s.emit("joinFreelancerDashboard", freelancerId);
+
+    // Evento cuando se crea un nuevo chat
+    s.on("newChat", (newChat) => {
+      console.log("✨ Nuevo chat creado:", newChat);
+      setChats((prev) => [newChat, ...prev]); // Agregar al inicio
+    });
+
+    // Evento cuando llega un nuevo mensaje
+    s.on("newMessage", (msg) => {
+      console.log("📨 Nuevo mensaje recibido en dashboard:", msg);
+
+      // Actualizar el último mensaje del chat
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === msg.chatId
+            ? { ...chat, lastMessage: msg.content, updatedAt: new Date() }
+            : chat
+        )
+      );
+    });
+
+    return () => {
+      s.disconnect();
+    };
+  }, [freelancer]);
+
+  const fetchChats = async (freelancerId: number) => {
     try {
-      const res = await fetch(`/api/freelancer/chats?freelancerId=${freelancerId}`);
+      const res = await fetch(
+        `/api/freelancer/chats?freelancerId=${freelancerId}`
+      );
       const data = await res.json();
+      console.log("💬 Chats cargados:", data);
       if (res.ok) setChats(data);
     } catch (err) {
       console.error("Error al cargar chats:", err);
@@ -40,13 +89,12 @@ export default function FreelancerDashboard() {
 
   if (!freelancer) return <p className="text-center mt-10">Cargando...</p>;
 
-  // 🧾 Actualizar perfil
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     const res = await fetch("/api/freelancer/update", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: freelancer.id, ...form }),
+      body: JSON.stringify({ id: Number(freelancer.id), ...form }),
     });
     const data = await res.json();
 
@@ -60,12 +108,14 @@ export default function FreelancerDashboard() {
     }
   };
 
-  // 🟢 Cambiar disponibilidad
   const handleToggleActive = async () => {
     const res = await fetch("/api/freelancer/toggle", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: freelancer.id, isActive: !isActive }),
+      body: JSON.stringify({
+        id: Number(freelancer.id),
+        isActive: !isActive,
+      }),
     });
     const data = await res.json();
 
@@ -78,18 +128,15 @@ export default function FreelancerDashboard() {
     }
   };
 
-  // 🔓 Cerrar sesión
   const handleLogout = () => {
     localStorage.removeItem("freelancer");
     router.push("/");
   };
 
-  // 💬 Entrar al chat
   const handleChat = (chatId: number) => {
     router.push(`/freelancer/chat/${chatId}`);
   };
 
-  // ❌ Eliminar chat
   const handleDeleteChat = async (chatId: number) => {
     if (!confirm("¿Seguro que deseas eliminar este chat?")) return;
 
@@ -111,7 +158,6 @@ export default function FreelancerDashboard() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-100 via-white to-gray-200 relative pb-20">
-      {/* Header */}
       <header className="flex justify-between items-center p-6 bg-white shadow-md sticky top-0 z-10">
         <div className="flex items-center gap-4">
           {form.profilePic ? (
@@ -154,7 +200,6 @@ export default function FreelancerDashboard() {
         </div>
       </header>
 
-      {/* Formulario animado */}
       <AnimatePresence>
         {showForm && (
           <motion.div
@@ -238,7 +283,6 @@ export default function FreelancerDashboard() {
         )}
       </AnimatePresence>
 
-      {/* Chats activos */}
       <motion.section
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
@@ -251,19 +295,22 @@ export default function FreelancerDashboard() {
 
         {chats.length === 0 ? (
           <p className="text-gray-500 text-center">
-            No tienes chats activos 😢
+            No tienes chats activos
           </p>
         ) : (
           <ul className="space-y-4">
             {chats.map((chat) => (
               <motion.li
                 key={chat.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
                 whileHover={{ scale: 1.02 }}
                 className="flex items-center justify-between bg-gray-50 p-4 rounded-xl shadow-sm hover:shadow-md transition"
               >
                 <div
                   onClick={() => handleChat(chat.id)}
-                  className="cursor-pointer"
+                  className="cursor-pointer flex-1"
                 >
                   <p className="font-semibold text-gray-800">
                     {chat.clientName}

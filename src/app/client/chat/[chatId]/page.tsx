@@ -42,7 +42,10 @@ export default function ClientChatRoom() {
     setSocket(s);
 
     s.emit("joinRoom", Number(chatId));
-    s.on("newMessage", (msg) => setMessages((prev) => [...prev, msg]));
+    s.on("newMessage", (msg) => {
+      console.log("📨 Mensaje recibido desde servidor:", msg);
+      setMessages((prev) => [...prev, msg]);
+    });
 
     return () => {
       s.disconnect();
@@ -66,15 +69,20 @@ export default function ClientChatRoom() {
       content: newMessage,
     };
 
-    const res = await fetch("/api/chat/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(msg),
-    });
-
-    const data = await res.json();
-    socket?.emit("sendMessage", data);
     setNewMessage("");
+
+    try {
+      const res = await fetch("/api/chat/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(msg),
+      });
+
+      if (!res.ok) throw new Error("Error al enviar");
+      // El servidor emitirá el mensaje a través de Socket.IO
+    } catch (err) {
+      console.error("Error al enviar mensaje:", err);
+    }
   };
 
   if (!client || !freelancer) return <p>Cargando chat...</p>;

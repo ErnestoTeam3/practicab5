@@ -17,10 +17,19 @@ export default function FreelancerChatRoom() {
 
   if (!chatId) return <p>Cargando chat...</p>;
 
-  // Cargar freelancer del localStorage
+  // Cargar freelancer del localStorage y convertir ID a número
   useEffect(() => {
     const stored = localStorage.getItem("freelancer");
-    if (stored) setFreelancer(JSON.parse(stored));
+    if (stored) {
+      const data = JSON.parse(stored);
+      console.log("📦 Datos del freelancer:", data);
+      console.log("🔍 ID original:", data.id, "Tipo:", typeof data.id);
+      
+      setFreelancer({
+        ...data,
+        id: Number(data.id), // ✅ Convertir a número
+      });
+    }
   }, []);
 
   // Cargar chat inicial
@@ -29,25 +38,32 @@ export default function FreelancerChatRoom() {
     fetch(`/api/chat/${chatId}`)
       .then((res) => res.json())
       .then((data) => {
+        console.log("💬 Chat cargado:", data);
         setMessages(data.messages || []);
         setClient(data.client);
-      });
+      })
+      .catch((err) => console.error("❌ Error al cargar chat:", err));
   }, [chatId]);
 
   // Socket.io
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId || !freelancer) return;
 
     const s = io("/", { path: "/api/socket" });
     setSocket(s);
 
     s.emit("joinRoom", Number(chatId));
-    s.on("newMessage", (msg) => setMessages((prev) => [...prev, msg]));
+    console.log(`📍 Uniéndose a sala: chat_${chatId}`);
+
+    s.on("newMessage", (msg) => {
+      console.log("📨 Mensaje recibido desde servidor:", msg);
+      setMessages((prev) => [...prev, msg]);
+    });
 
     return () => {
       s.disconnect();
     };
-  }, [chatId]);
+  }, [chatId, freelancer]);
 
   // Scroll automático
   useEffect(() => {
@@ -61,20 +77,33 @@ export default function FreelancerChatRoom() {
 
     const msg = {
       chatId: Number(chatId),
-      senderId: freelancer.id,
+      senderId: Number(freelancer.id), // ✅ ASEGURADO que es número
       senderType: "freelancer",
-      content: newMessage,
+      content: newMessage.trim(),
     };
 
-    const res = await fetch("/api/chat/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(msg),
-    });
+    console.log("📤 Enviando mensaje:", msg);
 
-    const data = await res.json();
-    socket?.emit("sendMessage", data);
     setNewMessage("");
+
+    try {
+      const res = await fetch("/api/chat/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(msg),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        console.error("❌ Error del servidor:", error);
+        throw new Error(error.error || "Error al enviar");
+      }
+
+      console.log("✅ Mensaje enviado correctamente");
+    } catch (err) {
+      console.error("❌ Error al enviar mensaje:", err);
+      setNewMessage(msg.content); // Restaurar mensaje si falla
+    }
   };
 
   if (!freelancer || !client) return <p>Cargando chat...</p>;
@@ -104,9 +133,7 @@ export default function FreelancerChatRoom() {
           transition={{ duration: 0.6 }}
           className="bg-pink-600 text-white py-4 flex items-center justify-center space-x-3 shadow-md"
         >
-          <h2 className="font-semibold text-lg">
-           {client.companyName}
-          </h2>
+          <h2 className="font-semibold text-lg">{client.companyName}</h2>
         </motion.header>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -158,7 +185,7 @@ export default function FreelancerChatRoom() {
             type="submit"
             className="ml-3 px-5 py-3 bg-pink-600 text-white font-semibold rounded-xl shadow-md hover:bg-pink-700 transition"
           >
-            🚀 Enviar
+             Enviar
           </motion.button>
         </motion.form>
       </div>
